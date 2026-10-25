@@ -1,4 +1,5 @@
 packages:
+  - packages/jarvis
   - vendor/*
   - packages/*/*
   # The Landlock launcher is developed with its harness consumers but keeps
@@ -118,3 +119,4 @@ patchedDependencies:
   exceljs@4.4.0: patches/exceljs@4.4.0.patch
   lexical@0.49.0: patches/lexical@0.49.0.patch
   node-pty@1.2.0-beta.15: patches/node-pty@1.2.0-beta.15.patch
+

@@ -40,7 +40,8 @@
     "presets/minimal.patch.yml",
     "presets/cordis.patch.yml",
     "lib/public-url-*.js",
-    "lib/types/**/*.d.ts"
+    "lib/types/**/*.d.ts",
+    "presets/jarvis.patch.yml"
   ],
   "license": "MIT",
   "dsh": {
@@ -50,7 +51,8 @@
         "./presets/standard.patch.yml",
         "./presets/ptc.patch.yml",
         "./presets/minimal.patch.yml",
-        "./presets/cordis.patch.yml"
+        "./presets/cordis.patch.yml",
+        "./presets/jarvis.patch.yml"
       ]
     }
   },
