@@ -1,0 +1,123 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.7-pg16
+        env:
+          POSTGRES_USER: jarvis
+          POSTGRES_HOST_AUTH_METHOD: trust  # throwaway runner-local container only
+          POSTGRES_DB: jarvis_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U jarvis" --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      JARVIS_TEST_DATABASE_URL: postgresql+psycopg://jarvis@127.0.0.1:5432/jarvis_test
+      JARVIS_DATABASE_URL: postgresql+psycopg://jarvis@127.0.0.1:5432/jarvis_test
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen
+      - run: uv run ruff format --check jarvis tests migrations scripts
+      - run: uv run ruff check jarvis tests migrations scripts
+      - run: uv run mypy jarvis
+      - name: Migrations round-trip (up, down, up) and model drift check
+        run: |
+          uv run alembic upgrade head
+          uv run alembic downgrade base
+          uv run alembic upgrade head
+          uv run alembic check
+      - run: uv run pytest -q
+      - name: Dependency audit
+        run: uv run pip-audit --progress-spinner off
+
+  contracts-and-frontend:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: astral-sh/setup-uv@v6
+      - run: pnpm install --frozen-lockfile
+      - run: (cd backend && uv sync --frozen)
+      - name: Contracts are in sync with the backend
+        run: |
+          pnpm contracts:gen
+          git diff --exit-code packages/contracts
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm --filter @jarvis/desktop build
+      - run: pnpm audit --prod --audit-level high
+
+  e2e:
+    runs-on: ubuntu-24.04
+    needs: [backend, contracts-and-frontend]
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.7-pg16
+        env:
+          POSTGRES_USER: jarvis
+          POSTGRES_HOST_AUTH_METHOD: trust  # throwaway runner-local container only
+          POSTGRES_DB: jarvis_e2e
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U jarvis" --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      E2E_DATABASE_URL: postgresql+psycopg://jarvis@127.0.0.1:5432/jarvis_e2e
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: astral-sh/setup-uv@v6
+      - run: pnpm install --frozen-lockfile
+      - run: (cd backend && uv sync --frozen)
+      - run: pnpm --filter @jarvis/desktop exec playwright install --with-deps chromium
+      - run: git config --global user.email ci@example.invalid && git config --global user.name ci
+      - run: pnpm --filter @jarvis/desktop e2e
+
+  tauri-shell:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Rust tests and clippy (Windows target)
+        working-directory: apps/desktop/src-tauri
+        run: |
+          cargo test
+          cargo clippy --all-targets -- -D warnings
+
+  secret-scan:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

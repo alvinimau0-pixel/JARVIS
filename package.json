@@ -1,0 +1,13 @@
+{
+  "name": "jarvis-os",
+  "private": true,
+  "packageManager": "pnpm@10.28.0",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "contracts:export": "cd backend && uv run python scripts/export_contracts.py",
+    "contracts:gen": "pnpm contracts:export && pnpm --filter @jarvis/contracts gen",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test"
+  }
+}
