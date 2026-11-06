@@ -1,0 +1,23 @@
+# Local PostgreSQL for JARVIS. Bound to 127.0.0.1 ONLY: never expose the database to the network.
+# The password comes from the environment (or a .env file you keep out of Git). No default.
+#   JARVIS_DB_PASSWORD=... docker compose -f infra/docker-compose.yml up -d
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.7-pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: jarvis
+      POSTGRES_DB: jarvis
+      POSTGRES_PASSWORD: ${JARVIS_DB_PASSWORD:?set JARVIS_DB_PASSWORD}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - jarvis-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jarvis -d jarvis"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  jarvis-pg:

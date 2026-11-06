@@ -1,0 +1,8 @@
+# Extend the default gitleaks rules. Backend tests deliberately plant FAKE secrets to prove
+# redaction works; they are allowlisted by path only. Nothing else is exempt.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Fake secrets used by redaction tests"
+paths = ['''^backend/tests/''']
