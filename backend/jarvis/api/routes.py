@@ -324,7 +324,13 @@ async def list_agent_credentials(svc: Svc, _: Human) -> list[s.AgentCredentialOu
     "/agents/credentials",
     response_model=s.AgentCredentialIssued,
     status_code=201,
-    responses={409: {"model": s.ErrorOut}, 422: {"model": s.ErrorOut}, 423: {"model": s.ErrorOut}},
+    # Explicit descriptions: the default is Python's HTTP phrase, which differs across
+    # versions (422 is "Unprocessable Entity" in 3.12, "Unprocessable Content" in 3.13).
+    responses={
+        409: {"model": s.ErrorOut, "description": "Agent already has an active credential"},
+        422: {"model": s.ErrorOut, "description": "Invalid agent id"},
+        423: {"model": s.ErrorOut, "description": "Emergency stop is active"},
+    },
 )
 async def issue_agent_credential(body: s.AgentCredentialIn, svc: Svc, who: Human) -> Any:
     try:

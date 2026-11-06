@@ -1176,7 +1176,7 @@
                 }
               }
             },
-            "description": "Conflict"
+            "description": "Agent already has an active credential"
           },
           "422": {
             "content": {
@@ -1186,7 +1186,7 @@
                 }
               }
             },
-            "description": "Unprocessable Content"
+            "description": "Invalid agent id"
           },
           "423": {
             "content": {
@@ -1196,7 +1196,7 @@
                 }
               }
             },
-            "description": "Locked"
+            "description": "Emergency stop is active"
           }
         },
         "summary": "Issue Agent Credential"

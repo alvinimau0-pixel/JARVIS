@@ -817,7 +817,7 @@ export interface operations {
                     "application/json": components["schemas"]["AgentCredentialIssued"];
                 };
             };
-            /** @description Conflict */
+            /** @description Agent already has an active credential */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -826,7 +826,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorOut"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Invalid agent id */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -835,7 +835,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorOut"];
                 };
             };
-            /** @description Locked */
+            /** @description Emergency stop is active */
             423: {
                 headers: {
                     [name: string]: unknown;
