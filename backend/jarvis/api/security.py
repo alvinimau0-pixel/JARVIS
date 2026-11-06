@@ -1,8 +1,12 @@
 """Request authentication, origin enforcement and rate limiting.
 
 The desktop shell generates a random session token per launch and passes it to the webview
-over Tauri IPC. Every HTTP request must carry ``Authorization: Bearer <token>``; WebSocket
-clients send it as the subprotocol ``auth.<token>`` (browsers cannot set WS headers).
+over Tauri IPC. That token is the human operator's credential. Every HTTP request must carry
+``Authorization: Bearer <token>``; WebSocket clients send it as the subprotocol
+``auth.<token>`` (browsers cannot set WS headers). The WebSocket accepts only the operator.
+
+Agents authenticate with their own tokens (``jarvis.security.agents``) and may reach only the
+routes in ``AGENT_ROUTES``; every other route answers 403 ``agent_forbidden`` to an agent.
 """
 
 from __future__ import annotations
@@ -15,6 +19,7 @@ from fastapi import Request, WebSocket
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import JSONResponse, Response
 
+from jarvis.security.agents import AgentCredentials, agent_may_call
 from jarvis.security.principal import Principal
 
 WS_PROTOCOL = "jarvis.v1"
@@ -33,10 +38,18 @@ def error(status: int, code: str, message: str) -> JSONResponse:
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app: object, *, token: str, allowed_origins: list[str]) -> None:
+    def __init__(
+        self,
+        app: object,
+        *,
+        token: str,
+        allowed_origins: list[str],
+        agents: AgentCredentials,
+    ) -> None:
         super().__init__(app)  # type: ignore[arg-type]
         self._token = token
         self._origins = set(allowed_origins)
+        self._agents = agents
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         if request.scope["type"] != "http":
@@ -50,9 +63,15 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         header = request.headers.get("authorization", "")
         presented = header[7:] if header.lower().startswith("bearer ") else None
-        if not token_matches(presented, self._token):
+        if token_matches(presented, self._token):
+            request.state.principal = Principal.operator()
+            return await call_next(request)
+        agent = self._agents.authenticate(presented)
+        if agent is None:
             return error(401, "unauthenticated", "missing or invalid session token")
-        request.state.principal = Principal.operator()
+        if not agent_may_call(request.method, request.url.path):
+            return error(403, "agent_forbidden", "this endpoint is not available to agents")
+        request.state.principal = agent
         return await call_next(request)
 
 

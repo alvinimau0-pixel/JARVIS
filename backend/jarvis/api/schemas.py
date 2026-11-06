@@ -158,6 +158,9 @@ class EmergencyStopReport(BaseModel):
         description="False if the stop worked but could not be saved/audited (e.g. DB down). "
         "In that case the latch is active only until the backend restarts."
     )
+    agent_credentials_revoked: int = Field(
+        default=0, description="Agent credentials revoked by the stop (all of them)."
+    )
 
 
 class SystemStateOut(BaseModel):
@@ -197,3 +200,25 @@ class AuditVerifyOut(BaseModel):
     checked: int
     first_bad_id: int | None
     detail: str
+    anchored_id: int | None = Field(
+        default=None,
+        description="Highest entry id recorded in the external anchor file and confirmed "
+        "present; entries up to it cannot have been truncated without detection.",
+    )
+
+
+class AgentCredentialIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    agent_id: str = Field(min_length=1, max_length=64)
+
+
+class AgentCredentialOut(BaseModel):
+    agent_id: str
+    created_at: datetime
+
+
+class AgentCredentialIssued(AgentCredentialOut):
+    token: str = Field(
+        description="Shown once. Give it only to the agent process; it is never retrievable."
+    )

@@ -10,7 +10,7 @@ integrity of approvals. Trust boundaries: (1) webview ↔ backend, (2) backend �
 | S2 | Malicious site opens WS to localhost (CSWSH) | 1 | WS origin check + token subprotocol (built) | `test_websocket_rejects_bad_auth_and_origin` |
 | S3 | Agent impersonates human to approve | 4 | Principal kind fixed server-side; agents never approve (built) | `test_agent_cannot_approve_even_its_own_request` |
 | T1 | Approval reused for different/changed params | 4 | Hash-bound, single-use, atomic consume (built) | `test_approval_cannot_be_reused_for_different_params`, `test_l2_requires_approval_then_runs_once` |
-| T2 | Audit log altered or deleted | 3 | DB trigger + hash chain verify (built); role separation (KI-002) | `test_audit_log_rejects_update_and_delete`, `test_audit_tampering_is_detected` |
+| T2 | Audit log altered or deleted | 3 | DB trigger + HMAC-keyed chain + insert-only runtime role + external head anchor (built). Residual: DB owner **and** anchor-file access together can truncate the tail | `test_audit_tampering_is_detected`, `test_forged_entry_without_the_key_is_detected`, `test_runtime_role_cannot_alter_or_unprotect_the_audit_log`, `test_truncated_tail_is_detected` |
 | R1 | Action without record | all | Every decision path audited inside its transaction (built) | `test_every_action_is_audited_and_chain_verifies` |
 | I1 | Secret leaks via logs/audit/events/output | all | Redaction + scrubbed child env (built) | `test_secrets_are_redacted_from_audit_and_logs`, `test_child_does_not_inherit_secrets` |
 | I2 | Token leaks via URL/access logs | 1 | Token never in URL; uvicorn access log disabled (built) | code review |
@@ -23,7 +23,8 @@ integrity of approvals. Trust boundaries: (1) webview ↔ backend, (2) backend �
 | E6 | Argument escapes (`--no-index`, abbreviated flags, absolute operands, pytest `-o`/`-c`/`--junitxml`) | 2 | Exact allowlists + relative operand containment (built) | `test_aud_h1_*`, `test_aud_h2_*` |
 | E7 | Stop/cancel races process start-up | 2 | Post-registration re-check (built) | `test_aud_h3_*` |
 | S4 | DNS rebinding | 1 | Loopback-only Host header (built) | `test_aud_l5_*` |
-| S5 | Agent with the session token approves its own request | 4 | **Open, latent** (KI-003): no agents yet; children never receive the token | `test_child_does_not_inherit_secrets` |
+| S5 | Agent with the session token approves its own request | 4 | Agents get separate route-restricted tokens and never the operator token; approvals bound to their requester; stop revokes agent tokens (built) | `test_agent_is_kept_off_human_routes`, `test_agent_cannot_approve_its_own_request`, `test_approval_can_only_be_spent_by_its_requester`, `test_child_does_not_inherit_secrets` |
+| S6 | Stolen/leaked agent token | 4 | Per-launch, revocable, digest-only storage, redacted (`jat_…`), revoked by emergency stop, cannot approve (built) | `test_revoked_credential_stops_working_and_is_audited`, `test_emergency_stop_revokes_every_agent_credential` |
 | E4 | Process survives emergency stop | 2 | Process groups / Job Objects; unconfirmed kills reported (built; Windows untested) | `test_emergency_stop_kills_running_tree_and_blocks_new_work` |
 | E5 | Agent resets emergency stop or changes policy | 4 | `mutates_policy` actions denied for agents (built) | `test_agent_cannot_reset_emergency_stop` |
 | P1 | Prompt injection via web/docs/repo content | 4 | Planned: content tagged untrusted, models only request policy-checked actions (Phase 5–6) | not yet applicable |

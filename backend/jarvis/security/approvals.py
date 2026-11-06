@@ -25,6 +25,7 @@ class ApprovalErrorCode(StrEnum):
     MISMATCH = "approval_action_mismatch"
     NOT_APPROVED = "approval_not_approved"
     CONSUMED = "approval_already_used"
+    WRONG_REQUESTER = "approval_requester_mismatch"
 
 
 class ApprovalError(Exception):
@@ -88,9 +89,10 @@ async def decide(
 
 
 async def consume(
-    session: AsyncSession, *, approval_id: uuid.UUID, result: PolicyResult
+    session: AsyncSession, *, approval_id: uuid.UUID, result: PolicyResult, requester: Principal
 ) -> Approval:
-    """Atomically mark an approval used, only if it matches this exact action and params."""
+    """Atomically mark an approval used, only if it matches this exact action and params and
+    is presented by the principal that requested it (one agent cannot spend another's)."""
     expected = action_hash(result.action, result.params)
     now = utcnow()
     row = (
@@ -103,6 +105,8 @@ async def consume(
                 Approval.expires_at > now,
                 Approval.action == result.action,
                 Approval.params_hash == expected,
+                Approval.requester_kind == requester.kind.value,
+                Approval.requester_id == requester.id,
             )
             .values(status="consumed", consumed_at=now)
             .returning(Approval)
@@ -122,6 +126,11 @@ async def consume(
         raise ApprovalError(ApprovalErrorCode.NOT_APPROVED, f"approval is {existing.status}")
     if existing.expires_at <= now:
         raise ApprovalError(ApprovalErrorCode.EXPIRED, "approval has expired")
+    if (existing.requester_kind, existing.requester_id) != (requester.kind.value, requester.id):
+        raise ApprovalError(
+            ApprovalErrorCode.WRONG_REQUESTER,
+            "approval was requested by a different principal and can only be used by it",
+        )
     raise ApprovalError(
         ApprovalErrorCode.MISMATCH,
         "approval was granted for a different action or different parameters",

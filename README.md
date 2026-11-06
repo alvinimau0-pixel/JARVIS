@@ -12,9 +12,10 @@ companion (later phase) connects over an authenticated private network.
 
 - **Three-section desktop UI** (CLAUDE · CODEX · BRAIN & WORKFLOW) with a live Three.js core
   whose state is driven only by real backend events.
-- **Backend-enforced security**: per-launch session token, L0–L3 policy engine, human
-  approvals bound to the exact action + parameters (single use, expiring), append-only
-  hash-chained audit log, global emergency stop that kills process trees.
+- **Backend-enforced security**: per-launch operator token, separate route-restricted agent
+  tokens, L0–L3 policy engine, human approvals bound to the exact action, parameters and
+  requester (single use, expiring), append-only HMAC-chained audit log written through an
+  insert-only database role, global emergency stop that kills process trees and revokes agents.
 - **Controlled execution**: allowlisted executables only, argv only (never a shell),
   workspace containment, scrubbed environment, timeouts and output caps.
 - **Ordered, replayable event stream** (WebSocket + REST replay).
@@ -53,7 +54,10 @@ pnpm install
 
 # Database: either export JARVIS_DATABASE_URL, or store it in the OS credential store:
 (cd backend && uv run jarvis-backend secrets set database_url)
-#   e.g. postgresql+psycopg://jarvis:<password>@127.0.0.1:5432/jarvis
+#   e.g. postgresql+psycopg://jarvis_runtime:<password>@127.0.0.1:5432/jarvis
+#   Use the restricted runtime role, not the owner: see docs/RECOVERY_PLAN.md.
+# The audit key is generated into the OS credential store on first start. Without one
+# (e.g. headless Linux), export JARVIS_AUDIT_KEY=<32+ random chars> and keep it safe.
 
 export JARVIS_WORKSPACES=/path/to/a/project      # approved workspaces (comma-separated)
 scripts/dev.sh                                    # backend + UI at http://127.0.0.1:1420

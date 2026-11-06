@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Protocol
 
 SERVICE = "jarvis-os"
-KNOWN_SECRETS = ("database_url",)
+KNOWN_SECRETS = ("database_url", "audit_hmac_key")
 
 
 class SecretStore(Protocol):

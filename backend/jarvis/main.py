@@ -20,6 +20,8 @@ from jarvis import __version__
 from jarvis.api.routes import router
 from jarvis.api.security import AuthMiddleware, RateLimitMiddleware
 from jarvis.app_state import Services
+from jarvis.audit import log as audit_log
+from jarvis.audit.anchor import ANCHOR_FILENAME, AuditAnchor
 from jarvis.core.config import Settings, get_settings
 from jarvis.core.logging import configure_logging
 from jarvis.core.redaction import register_secret
@@ -28,6 +30,7 @@ from jarvis.db.session import make_engine, make_sessionmaker
 from jarvis.events.bus import EventBus
 from jarvis.exec.allowlist import Allowlist, default_allowlist
 from jarvis.exec.runner import ProcessRegistry
+from jarvis.security.agents import AgentCredentials
 from jarvis.security.emergency import EmergencyLatch
 from jarvis.security.policy import PolicyEngine
 from jarvis.tasks.service import ActionService
@@ -48,6 +51,16 @@ def create_app(settings: Settings | None = None, allowlist: Allowlist | None = N
     token = settings.session_token.get_secret_value()
     register_secret(token)
     register_secret(settings.database_url.get_secret_value())
+    if settings.audit_key is None:
+        raise RuntimeError(
+            "No audit key: set JARVIS_AUDIT_KEY, or make the OS credential store available so "
+            "one can be generated (`jarvis-backend secrets set audit_hmac_key` to restore one)."
+        )
+    audit_key = settings.audit_key.get_secret_value()
+    register_secret(audit_key)
+    audit_log.set_key(audit_key)
+    agents = AgentCredentials()
+    anchor = AuditAnchor(settings.data_dir / ANCHOR_FILENAME)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -72,11 +85,36 @@ def create_app(settings: Settings | None = None, allowlist: Allowlist | None = N
             approval_ttl_seconds=settings.approval_ttl_seconds,
             output_limit=settings.exec_output_limit_bytes,
             max_concurrent_jobs=settings.exec_max_concurrent_jobs,
+            agents=agents,
         )
         app.state.services = Services(
-            settings, engine, maker, bus, policy, registry, latch, actions, migration_head()
+            settings,
+            engine,
+            maker,
+            bus,
+            policy,
+            registry,
+            latch,
+            actions,
+            migration_head(),
+            anchor,
         )
         await actions.recover_after_restart()
+
+        async def record_anchor() -> None:
+            try:
+                async with maker() as session:
+                    await anchor.record(session)
+            except Exception:  # noqa: BLE001 - anchoring must never take the backend down
+                log.exception("could not record the audit anchor")
+
+        async def anchor_loop() -> None:
+            while True:
+                await asyncio.sleep(settings.audit_anchor_interval_seconds)
+                await record_anchor()
+
+        await record_anchor()
+        anchoring = asyncio.create_task(anchor_loop())
         watchdog: asyncio.Task[None] | None = None
         if settings.parent_pid:
 
@@ -91,7 +129,9 @@ def create_app(settings: Settings | None = None, allowlist: Allowlist | None = N
         finally:
             if watchdog is not None:
                 watchdog.cancel()
+            anchoring.cancel()
             await actions.shutdown()
+            await record_anchor()
             await engine.dispose()
 
     app = FastAPI(
@@ -106,7 +146,9 @@ def create_app(settings: Settings | None = None, allowlist: Allowlist | None = N
 
     # Order: outermost first after reversal -> CORS, then auth, then rate limit.
     app.add_middleware(RateLimitMiddleware, per_minute=settings.rate_limit_per_minute)
-    app.add_middleware(AuthMiddleware, token=token, allowed_origins=settings.allowed_origins)
+    app.add_middleware(
+        AuthMiddleware, token=token, allowed_origins=settings.allowed_origins, agents=agents
+    )
     # DNS-rebinding defence: only loopback Host headers are accepted.
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "[::1]"])
     app.add_middleware(

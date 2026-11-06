@@ -16,16 +16,17 @@ Status: covers what is built in Phases 0–2. Planned components are marked *(pl
  │        │  WS    subprotocols [jarvis.v1, auth.<token>]                      │
  │        ▼                                                                    │
  │  FastAPI backend (127.0.0.1 only)                                           │
- │   ├─ AuthMiddleware (token, origin) · RateLimit · CORS                      │
+ │   ├─ AuthMiddleware (operator token | agent tokens, origin) · RateLimit     │
+ │   │    agent tokens: actions/jobs/catalog/health only; never approvals      │
  │   ├─ ActionService ─ the ONLY execution path                                │
  │   │    PolicyEngine (L0–L3) → Approvals (hash-bound) → Runner               │
  │   ├─ EventBus (persist → seq → broadcast; replay since_seq)                 │
- │   ├─ Audit log (append-only, hash chain, DB trigger)                        │
+ │   ├─ Audit log (HMAC chain, DB trigger, insert-only role, file anchor)      │
  │   ├─ EmergencyLatch (persisted) + ProcessRegistry (tree kill)               │
  │   └─ SecretStore → Windows Credential Manager (keyring)                     │
  │        │                                                                    │
  │        ▼                                                                    │
- │  PostgreSQL 16 (127.0.0.1)                                                  │
+ │  PostgreSQL 16 (127.0.0.1) · backend connects as jarvis_app member          │
  └────────────────────────────────────────────────────────────────────────────┘
    iPhone companion (planned, Phase 11): PWA over an authenticated private
    network; never direct access to DB, model runtime or execution service.

@@ -12,6 +12,7 @@ REDACTED = "[REDACTED]"
 
 _PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"sk-ant-[A-Za-z0-9_\-]{10,}"),
+    re.compile(r"jat_[A-Za-z0-9_\-]{20,}"),  # JARVIS agent tokens
     re.compile(r"sk-(?:proj-)?[A-Za-z0-9_\-]{16,}"),
     re.compile(r"gh[pousr]_[A-Za-z0-9]{20,}"),
     re.compile(r"github_pat_[A-Za-z0-9_]{20,}"),

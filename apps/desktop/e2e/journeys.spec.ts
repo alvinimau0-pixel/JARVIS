@@ -43,7 +43,7 @@ test("drawers open and close", async ({ page }) => {
     const dialog = page.getByRole("dialog", { name: title });
     await expect(dialog).toBeVisible();
     if (title === "System health") {
-      await expect(dialog.getByText("database")).toBeVisible();
+      await expect(dialog.getByText("database", { exact: true })).toBeVisible();
       await shot(page, "04-health");
     }
     await page.keyboard.press("Escape");

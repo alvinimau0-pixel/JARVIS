@@ -21,6 +21,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agents/credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Agent Credentials */
+        get: operations["list_agent_credentials_api_v1_agents_credentials_get"];
+        put?: never;
+        /** Issue Agent Credential */
+        post: operations["issue_agent_credential_api_v1_agents_credentials_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agents/credentials/{agent_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke Agent Credential */
+        post: operations["revoke_agent_credential_api_v1_agents_credentials__agent_id__revoke_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/approvals": {
         parameters: {
             query?: never;
@@ -330,6 +365,36 @@ export interface components {
             /** Task Id */
             task_id?: string | null;
         };
+        /** AgentCredentialIn */
+        AgentCredentialIn: {
+            /** Agent Id */
+            agent_id: string;
+        };
+        /** AgentCredentialIssued */
+        AgentCredentialIssued: {
+            /** Agent Id */
+            agent_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Token
+             * @description Shown once. Give it only to the agent process; it is never retrievable.
+             */
+            token: string;
+        };
+        /** AgentCredentialOut */
+        AgentCredentialOut: {
+            /** Agent Id */
+            agent_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
         /** ApprovalOut */
         ApprovalOut: {
             /** Action */
@@ -411,6 +476,11 @@ export interface components {
         };
         /** AuditVerifyOut */
         AuditVerifyOut: {
+            /**
+             * Anchored Id
+             * @description Highest entry id recorded in the external anchor file and confirmed present; entries up to it cannot have been truncated without detection.
+             */
+            anchored_id?: number | null;
             /** Checked */
             checked: number;
             /** Detail */
@@ -431,6 +501,12 @@ export interface components {
         };
         /** EmergencyStopReport */
         EmergencyStopReport: {
+            /**
+             * Agent Credentials Revoked
+             * @description Agent credentials revoked by the stop (all of them).
+             * @default 0
+             */
+            agent_credentials_revoked: number;
             /** Jobs Cancelled */
             jobs_cancelled: number;
             /** Latched */
@@ -695,6 +771,110 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    list_agent_credentials_api_v1_agents_credentials_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentCredentialOut"][];
+                };
+            };
+        };
+    };
+    issue_agent_credential_api_v1_agents_credentials_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentCredentialIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentCredentialIssued"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Locked */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    revoke_agent_credential_api_v1_agents_credentials__agent_id__revoke_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

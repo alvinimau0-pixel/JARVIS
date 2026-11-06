@@ -143,6 +143,66 @@
         "title": "ActionResponse",
         "type": "object"
       },
+      "AgentCredentialIn": {
+        "additionalProperties": false,
+        "properties": {
+          "agent_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Agent Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent_id"
+        ],
+        "title": "AgentCredentialIn",
+        "type": "object"
+      },
+      "AgentCredentialIssued": {
+        "properties": {
+          "agent_id": {
+            "title": "Agent Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "token": {
+            "description": "Shown once. Give it only to the agent process; it is never retrievable.",
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent_id",
+          "created_at",
+          "token"
+        ],
+        "title": "AgentCredentialIssued",
+        "type": "object"
+      },
+      "AgentCredentialOut": {
+        "properties": {
+          "agent_id": {
+            "title": "Agent Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent_id",
+          "created_at"
+        ],
+        "title": "AgentCredentialOut",
+        "type": "object"
+      },
       "ApprovalOut": {
         "properties": {
           "action": {
@@ -342,6 +402,18 @@
       },
       "AuditVerifyOut": {
         "properties": {
+          "anchored_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Highest entry id recorded in the external anchor file and confirmed present; entries up to it cannot have been truncated without detection.",
+            "title": "Anchored Id"
+          },
           "checked": {
             "title": "Checked",
             "type": "integer"
@@ -409,6 +481,12 @@
       },
       "EmergencyStopReport": {
         "properties": {
+          "agent_credentials_revoked": {
+            "default": 0,
+            "description": "Agent credentials revoked by the stop (all of them).",
+            "title": "Agent Credentials Revoked",
+            "type": "integer"
+          },
           "jobs_cancelled": {
             "title": "Jobs Cancelled",
             "type": "integer"
@@ -1044,6 +1122,126 @@
           }
         },
         "summary": "Submit Action"
+      }
+    },
+    "/api/v1/agents/credentials": {
+      "get": {
+        "operationId": "list_agent_credentials_api_v1_agents_credentials_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AgentCredentialOut"
+                  },
+                  "title": "Response List Agent Credentials Api V1 Agents Credentials Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Agent Credentials"
+      },
+      "post": {
+        "operationId": "issue_agent_credential_api_v1_agents_credentials_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentCredentialIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentCredentialIssued"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Locked"
+          }
+        },
+        "summary": "Issue Agent Credential"
+      }
+    },
+    "/api/v1/agents/credentials/{agent_id}/revoke": {
+      "post": {
+        "operationId": "revoke_agent_credential_api_v1_agents_credentials__agent_id__revoke_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "title": "Agent Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Revoke Agent Credential Api V1 Agents Credentials  Agent Id  Revoke Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke Agent Credential"
       }
     },
     "/api/v1/approvals": {

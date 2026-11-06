@@ -18,6 +18,7 @@ def main() -> None:
     settings = Settings(
         session_token=secrets.token_urlsafe(32),  # type: ignore[arg-type]
         database_url="postgresql+psycopg://contract-export@127.0.0.1/none",  # type: ignore[arg-type]
+        audit_key=secrets.token_urlsafe(32),  # type: ignore[arg-type]
     )
     spec = create_app(settings).openapi()
     OUT.write_text(json.dumps(spec, indent=2, sort_keys=True) + "\n", encoding="utf-8")

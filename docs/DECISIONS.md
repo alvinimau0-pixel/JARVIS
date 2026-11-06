@@ -49,10 +49,24 @@ throwaway per-run token injected by `scripts/dev.sh` (DEV builds only).
 (status=approved, unconsumed, unexpired, same hash). Prevents replay, parameter swapping and
 races between two consumers.
 
-## ADR-011 Append-only audit with hash chain
-DB trigger rejects UPDATE/DELETE/TRUNCATE; each entry hashes the previous entry's hash, so even a
-table owner who disables the trigger is detected by `/audit/verify`. Separate DB roles
-(migration owner vs app) are planned (KI-002).
+## ADR-011 Append-only audit with keyed hash chain
+DB trigger rejects UPDATE/DELETE/TRUNCATE; each entry carries an HMAC-SHA256 (key in the OS
+credential store) over the previous hash and its content, so editing, inserting or reordering
+is detected by `/audit/verify` even for someone with full database rights. The backend runs as
+an insert-only role (`jarvis_app`, migration 0002) that cannot disable the triggers, and the
+chain head is anchored to a file outside the database to catch tail truncation. Chosen over
+signing (Ed25519): a single-host system verifies with the same secret it writes with, and HMAC
+needs no new dependency. Revisit when a second verifier (the iPhone, Phase 11) exists.
+
+## ADR-013 Agents get separate, route-restricted credentials
+The operator session token (Tauri IPC → webview only) is the human-presence credential. Agents
+receive their own per-launch tokens, mapped to `Principal.agent`, which can only submit actions
+and read job status; approvals, emergency stop/reset and credential management are human-only.
+Approvals are bound to their requester. Tokens are in memory only and revoked by the emergency
+stop, so a stopped system restarts with no agent able to act until the operator re-issues one.
+Considered and rejected: a second "human presence" token issued by Tauri per approval click;
+it adds IPC surface without separating anything the operator token does not already separate,
+since agents never see either.
 
 ## ADR-012 Licence: owner decision pending
 The repository previously held Microsoft's JARVIS research code (MIT). That code was removed with

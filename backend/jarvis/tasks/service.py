@@ -24,6 +24,7 @@ from jarvis.events.bus import EventBus
 from jarvis.exec.proctree import KillOutcome
 from jarvis.exec.runner import ProcessRegistry, run_controlled
 from jarvis.security import approvals
+from jarvis.security.agents import AgentCredential, AgentCredentials
 from jarvis.security.emergency import EmergencyLatch
 from jarvis.security.policy import Decision, DenyCode, ExecPlan, PolicyEngine, PolicyResult
 from jarvis.security.principal import Principal
@@ -55,6 +56,7 @@ class StopOutcome:
     jobs_cancelled: int
     kills: list[KillOutcome] = field(default_factory=list)
     persisted: bool = True
+    agent_credentials_revoked: int = 0
 
 
 class ActionService:
@@ -69,6 +71,7 @@ class ActionService:
         approval_ttl_seconds: int,
         output_limit: int,
         max_concurrent_jobs: int = 4,
+        agents: AgentCredentials | None = None,
     ) -> None:
         self.maker = maker
         self.bus = bus
@@ -78,6 +81,7 @@ class ActionService:
         self.approval_ttl_seconds = approval_ttl_seconds
         self.output_limit = output_limit
         self.max_concurrent_jobs = max_concurrent_jobs
+        self.agents = agents or AgentCredentials()
         self._bg: set[asyncio.Task[None]] = set()
         self._cancel_requested: set[uuid.UUID] = set()
 
@@ -114,7 +118,7 @@ class ActionService:
             try:
                 async with self.maker() as session, session.begin():
                     consumed = await approvals.consume(
-                        session, approval_id=approval_id, result=result
+                        session, approval_id=approval_id, result=result, requester=principal
                     )
             except approvals.ApprovalError as exc:
                 failure = exc
@@ -495,6 +499,8 @@ class ActionService:
     async def emergency_stop(self, principal: Principal) -> StopOutcome:
         """Stop everything. Killing processes never waits on, or depends on, the database."""
         self.latch.engage_now()
+        # No agent may keep acting after a stop; they are re-issued deliberately afterwards.
+        revoked_agents = self.agents.revoke_all()
         active = self.registry.active()
         self._cancel_requested.update(active)
         kills = await asyncio.to_thread(self.registry.kill_all)
@@ -530,6 +536,7 @@ class ActionService:
                     details={
                         "active_jobs": [str(j) for j in active],
                         "approvals_expired": len(expired),
+                        "agents_revoked": revoked_agents,
                         "kills": [
                             {"pid": k.pid, "stopped": k.stopped, "detail": k.detail} for k in kills
                         ],
@@ -555,7 +562,10 @@ class ActionService:
         if pending:
             await asyncio.wait(pending, timeout=10)
         return StopOutcome(
-            jobs_cancelled=len(active) + len(queued), kills=kills, persisted=persisted
+            jobs_cancelled=len(active) + len(queued),
+            kills=kills,
+            persisted=persisted,
+            agent_credentials_revoked=revoked_agents,
         )
 
     async def _emergency_reset(
@@ -583,6 +593,43 @@ class ActionService:
         return SubmitOutcome(
             "completed", result.action, int(result.level), result={"emergency_stop": False}
         )
+
+    # ------------------------------------------------------- agent credentials
+    async def issue_agent_credential(
+        self, principal: Principal, agent_id: str
+    ) -> tuple[AgentCredential, str]:
+        if not principal.is_human:  # also enforced at the transport layer
+            raise PermissionError("only the human operator can issue agent credentials")
+        if self.latch.latched:
+            raise ActionDenied(
+                "emergency_stop_active", "emergency stop is active; no agent may be started"
+            )
+        cred, token = self.agents.issue(agent_id)
+        try:
+            await self._audit_standalone(
+                principal,
+                action="agent.credential_issue",
+                target=agent_id,
+                decision="executed",
+                details={"fingerprint": cred.digest[:12]},
+            )
+        except Exception:
+            self.agents.revoke(agent_id)  # never hand out a credential that was not audited
+            raise
+        return cred, token
+
+    async def revoke_agent_credential(self, principal: Principal, agent_id: str) -> bool:
+        if not principal.is_human:
+            raise PermissionError("only the human operator can revoke agent credentials")
+        revoked = self.agents.revoke(agent_id)  # revoke first: never wait on the database
+        await self._audit_standalone(
+            principal,
+            action="agent.credential_revoke",
+            target=agent_id,
+            decision="executed" if revoked else "not_found",
+            details={},
+        )
+        return revoked
 
     # ------------------------------------------------------------ recovery
     async def recover_after_restart(self) -> None:

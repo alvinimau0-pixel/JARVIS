@@ -43,6 +43,9 @@ export default defineConfig({
         JARVIS_DATABASE_URL: db,
         JARVIS_SESSION_TOKEN: token,
         JARVIS_WORKSPACES: workspace,
+        // Throwaway audit key and data dir: the e2e database is wiped on every run.
+        JARVIS_AUDIT_KEY: randomBytes(32).toString("base64url"),
+        JARVIS_DATA_DIR: mkdtempSync(join(tmpdir(), "jarvis-e2e-data-")),
       },
       stdout: "ignore",
       stderr: "pipe",

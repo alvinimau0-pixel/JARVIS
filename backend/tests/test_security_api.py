@@ -77,17 +77,13 @@ def test_websocket_rejects_bad_auth_and_origin(
     assert exc.value.code == 4401
 
 
-def test_rate_limit_blocks_runaway_loops(db: Any, workspace: Path, token: str) -> None:
-    from jarvis.core.config import Settings
+def test_rate_limit_blocks_runaway_loops(
+    db: Any, workspace: Path, token: str, data_dir: Path
+) -> None:
     from jarvis.main import create_app
-    from tests.conftest import make_allowlist, sync_url
+    from tests.conftest import make_allowlist, make_settings
 
-    settings = Settings(
-        session_token=token,
-        database_url=sync_url(),  # type: ignore[arg-type]
-        workspaces=[workspace],
-        rate_limit_per_minute=3,
-    )
+    settings = make_settings(token, workspace, data_dir, rate_limit_per_minute=3)
     with TestClient(create_app(settings, make_allowlist()), base_url="http://127.0.0.1") as c:
         c.headers["Authorization"] = f"Bearer {token}"
         codes = [c.post("/api/v1/actions", json={"action": "nope"}).status_code for _ in range(5)]

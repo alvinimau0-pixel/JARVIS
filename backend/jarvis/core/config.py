@@ -5,7 +5,9 @@ Secrets (session token, database password) are never given defaults and are neve
 
 from __future__ import annotations
 
+import logging
 import os
+import secrets
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated
@@ -14,6 +16,9 @@ from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from jarvis.secrets.store import KeyringStore, SecretStore
+
+log = logging.getLogger("jarvis.config")
+AUDIT_KEY_SECRET = "audit_hmac_key"  # noqa: S105 - a credential-store entry name
 
 
 def _split_csv(value: object) -> object:
@@ -29,6 +34,11 @@ class Settings(BaseSettings):
     session_token: SecretStr = Field(min_length=32)
 
     database_url: SecretStr
+
+    # HMAC key for the audit chain. Loaded from the OS credential store (generated there on
+    # first start) unless JARVIS_AUDIT_KEY is set. ``create_app`` refuses to start without it.
+    audit_key: SecretStr | None = Field(default=None, min_length=32)
+    audit_anchor_interval_seconds: float = Field(default=60.0, gt=0)
 
     host: str = "127.0.0.1"
     port: int = 8765
@@ -89,11 +99,24 @@ class Settings(BaseSettings):
 
 def load_settings(store: SecretStore | None = None) -> Settings:
     """Environment first; for secrets missing from the environment, the OS credential store."""
+    store = store or KeyringStore()
     overrides: dict[str, str] = {}
     if not os.environ.get("JARVIS_DATABASE_URL"):
-        value = (store or KeyringStore()).get("database_url")
+        value = store.get("database_url")
         if value:
             overrides["database_url"] = value
+    if not os.environ.get("JARVIS_AUDIT_KEY"):
+        key = store.get(AUDIT_KEY_SECRET)
+        if not key:
+            key = secrets.token_urlsafe(32)
+            try:
+                store.set(AUDIT_KEY_SECRET, key)
+                log.info("generated a new audit key and stored it in the OS credential store")
+            except Exception:  # noqa: BLE001 - no usable credential store; create_app fails closed
+                log.warning("no OS credential store available for the audit key")
+                key = None
+        if key:
+            overrides["audit_key"] = key
     return Settings(**overrides)  # type: ignore[arg-type]
 
 

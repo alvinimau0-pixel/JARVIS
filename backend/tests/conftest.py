@@ -81,14 +81,31 @@ def make_allowlist() -> Allowlist:
     return allow
 
 
+AUDIT_KEY = secrets.token_urlsafe(32)  # one key per test session, like one per install
+
+
 @pytest.fixture()
-def client(db: Any, workspace: Path, token: str) -> Iterator[TestClient]:
-    settings = Settings(
-        session_token=token,  # type: ignore[arg-type]
-        database_url=sync_url(),  # type: ignore[arg-type]
-        workspaces=[workspace],
-        rate_limit_per_minute=1000,
-    )
+def data_dir(tmp_path: Path) -> Path:
+    d = tmp_path / "jarvis-data"
+    d.mkdir()
+    return d
+
+
+def make_settings(token: str, workspace: Path, data_dir: Path, **kw: Any) -> Settings:
+    base: dict[str, Any] = {
+        "session_token": token,
+        "database_url": sync_url(),
+        "audit_key": AUDIT_KEY,
+        "data_dir": data_dir,
+        "workspaces": [workspace],
+        "rate_limit_per_minute": 1000,
+    }
+    return Settings(**{**base, **kw})
+
+
+@pytest.fixture()
+def client(db: Any, workspace: Path, token: str, data_dir: Path) -> Iterator[TestClient]:
+    settings = make_settings(token, workspace, data_dir)
     app = create_app(settings, allowlist=make_allowlist())
     with TestClient(app, base_url="http://127.0.0.1") as c:
         c.headers["Authorization"] = f"Bearer {token}"

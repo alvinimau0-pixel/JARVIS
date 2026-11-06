@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from jarvis.audit.anchor import AuditAnchor
 from jarvis.core.config import Settings
 from jarvis.events.bus import EventBus
 from jarvis.exec.runner import ProcessRegistry
@@ -23,3 +24,4 @@ class Services:
     latch: EmergencyLatch
     actions: ActionService
     migration_head: str
+    anchor: AuditAnchor
